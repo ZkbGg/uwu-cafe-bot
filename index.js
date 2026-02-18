@@ -121,8 +121,9 @@ client.on(Events.InteractionCreate, async interaction => {
       }
 
       const texto = lista.map((e, i) => {
-        const h = Math.floor(e.totalMinutos / 60);
-        const m = e.totalMinutos % 60;
+const total = e.totalMinutos || 0;
+const h = Math.floor(total / 60);
+const m = total % 60;
         return `**${i + 1}. ${e.nombre}** — ${h}h ${m}m`;
       }).join("\n");
 
