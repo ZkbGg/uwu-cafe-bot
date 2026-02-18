@@ -131,37 +131,42 @@ const m = total % 60;
     }
 
     // ✏️ EDITAR HORAS
-    if (interaction.commandName === "editar_horas") {
-      if (!interaction.member.permissions.has("Administrator")) {
-        return interaction.reply({
-          content: "❌ Solo administradores.",
-          ephemeral: true
-        });
-      }
+if (interaction.commandName === "editar_horas") {
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({
+      content: "❌ Solo administradores.",
+      ephemeral: true
+    });
+  }
 
-      const nombre = interaction.options.getString("nombre");
-      const horas = interaction.options.getInteger("horas");
-      const minutos = interaction.options.getInteger("minutos");
-      const operacion = interaction.options.getString("operacion");
+  const nombre = interaction.options.getString("nombre");
+  const horas = interaction.options.getInteger("horas") || 0;
+  const minutos = interaction.options.getInteger("minutos") || 0;
+  const operacion = interaction.options.getString("operacion");
 
-      const emp = await empleados.findOne({ nombre });
-      if (!emp) return interaction.reply(`❌ No existe **${nombre}**`);
+  const ajuste = horas * 60 + minutos;
 
-      let totalMin = emp.totalMinutos;
-      const ajuste = horas * 60 + minutos;
+  const emp = await empleados.findOne({ nombre });
 
-      if (operacion === "sumar") totalMin += ajuste;
-      if (operacion === "restar") totalMin -= ajuste;
-      if (operacion === "reemplazar") totalMin = ajuste;
-      if (totalMin < 0) totalMin = 0;
+  let total = emp?.totalMinutos || 0;
 
-      await empleados.updateOne({ nombre }, { $set: { totalMinutos: totalMin } });
+  if (operacion === "sumar") total += ajuste;
+  if (operacion === "restar") total -= ajuste;
+  if (operacion === "reemplazar") total = ajuste;
 
-      const h = Math.floor(totalMin / 60);
-      const m = totalMin % 60;
+  if (total < 0) total = 0;
 
-      return interaction.reply(`✏️ **${nombre}** → ${h}h ${m}m`);
-    }
+  await empleados.updateOne(
+    { nombre },
+    { $set: { totalMinutos: total } },
+    { upsert: true }
+  );
+
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+
+  return interaction.reply(`✏️ **${nombre}** → ${h}h ${m}m`);
+}
 
     // 🔄 RESET RANKING
     if (interaction.commandName === "resetear_ranking") {
