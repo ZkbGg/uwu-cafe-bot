@@ -113,22 +113,22 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // 🏆 RANKING
-    if (interaction.commandName === "ranking") {
-      const lista = await empleados.find().sort({ totalMinutos: -1 }).toArray();
+if (interaction.commandName === "ranking") {
+  const lista = await empleados.find().sort({ totalMinutos: -1 }).toArray();
 
-      if (!lista.length) {
-        return interaction.reply("No hay datos todavía.");
-      }
+  if (!lista.length) {
+    return interaction.reply("No hay datos todavía.");
+  }
 
-      const texto = lista.map((e, i) => {
-const total = e.totalMinutos || 0;
-const h = Math.floor(total / 60);
-const m = total % 60;
-        return `**${i + 1}. ${e.nombre}** — ${h}h ${m}m`;
-      }).join("\n");
+  const texto = lista.map((e, i) => {
+    const total = e.totalMinutos || 0;
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    return `**${i + 1}. ${e.nombre}** — ${h}h ${m}m`;
+  }).join("\n");
 
-      return interaction.reply(`🏆 **Ranking**\n\n${texto}`);
-    }
+  return interaction.reply(`🏆 **Ranking**\n\n${texto}`);
+}
 
     // ✏️ EDITAR HORAS
 if (interaction.commandName === "editar_horas") {
