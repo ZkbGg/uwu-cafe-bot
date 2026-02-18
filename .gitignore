@@ -1,5 +1,6 @@
 node_modules/
 .env
 turnos.json
+turnosActivos.json
 logs/
 *.log

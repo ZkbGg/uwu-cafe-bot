@@ -1,4 +1,5 @@
-const fs = require('fs');
+require("dotenv").config();
+const { MongoClient } = require("mongodb");
 const {
   Client,
   GatewayIntentBits,
@@ -6,113 +7,69 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle
-} = require('discord.js');
+} = require("discord.js");
 
 const TOKEN = process.env.TOKEN;
+const MONGO_URI = process.env.MONGO_URI;
 
+// ===============================
+// 🤖 DISCORD CLIENT
+// ===============================
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
-console.log("===== VARIABLES DE ENTORNO =====");
-console.log("TOKEN:", process.env.TOKEN ? "OK" : "NO");
-console.log("CLIENT_ID:", process.env.CLIENT_ID || "NO");
-console.log("GUILD_ID:", process.env.GUILD_ID || "NO");
-console.log("================================");
-const TURNOS_FILE = './turnos.json';
-const turnosActivos = new Map();
 
 // ===============================
-// 📁 ARCHIVOS
+// 🍃 MONGODB
 // ===============================
-function cargarTurnos() {
-  if (!fs.existsSync(TURNOS_FILE)) return {};
-  return JSON.parse(fs.readFileSync(TURNOS_FILE));
-}
+let db;
+let empleados;
+let turnos;
+let turnosActivos;
 
-function guardarTurnos(data) {
-  fs.writeFileSync(TURNOS_FILE, JSON.stringify(data, null, 2));
-}
+async function conectarDB() {
+  const mongo = new MongoClient(MONGO_URI);
+  await mongo.connect();
 
-function parseDuracion(duracion) {
-  const match = duracion.match(/(\d+)h\s(\d+)m/);
-  if (!match) return 0;
-  return parseInt(match[1]) * 60 + parseInt(match[2]);
+  db = mongo.db("uwuCafe");
+
+  empleados = db.collection("empleados");
+  turnos = db.collection("turnos");
+  turnosActivos = db.collection("turnosActivos");
+
+  // Evita duplicar turnos activos
+  await turnosActivos.createIndex({ discordId: 1 }, { unique: true });
+
+  console.log("✅ Conectado a MongoDB");
 }
 
 // ===============================
 // 🤖 BOT LISTO
 // ===============================
 client.once(Events.ClientReady, () => {
-  console.log(`Bot listo como ${client.user.tag}`);
+  console.log(`☕ Bot listo como ${client.user.tag}`);
 });
 
 // ===============================
-// 🎛️ INTERACCIONES
+// 🎛️ COMANDOS SLASH
 // ===============================
 client.on(Events.InteractionCreate, async interaction => {
 
-
+  // ===============================
+  // COMANDOS
+  // ===============================
   if (interaction.isChatInputCommand()) {
 
-if (interaction.commandName === 'editar_horas') {
-
-  // 🔐 Verificar permisos primero
-  if (!interaction.member.permissions.has('Administrator')) {
-    return interaction.reply({
-      content: '❌ Solo administradores pueden editar horas.',
-      ephemeral: true
-    });
-  }
-
-  const nombre = interaction.options.getString('nombre');
-  const horas = interaction.options.getInteger('horas');
-  const minutos = interaction.options.getInteger('minutos');
-  const operacion = interaction.options.getString('operacion');
-
-  const turnos = cargarTurnos();
-
-  if (!turnos[nombre]) {
-    return interaction.reply({
-      content: `❌ No existe el empleado **${nombre}**`,
-      ephemeral: true
-    });
-  }
-
-  // calcular minutos actuales
-  let totalMin = turnos[nombre]
-    .map(t => parseDuracion(t.duracion))
-    .reduce((a, b) => a + b, 0);
-
-  const ajusteMin = horas * 60 + minutos;
-
-  if (operacion === 'sumar') totalMin += ajusteMin;
-  if (operacion === 'restar') totalMin -= ajusteMin;
-  if (operacion === 'reemplazar') totalMin = ajusteMin;
-
-  if (totalMin < 0) totalMin = 0;
-
-  const nuevasHoras = Math.floor(totalMin / 60);
-  const nuevosMin = totalMin % 60;
-
-  // reemplazamos los turnos por uno solo corregido
-  turnos[nombre] = [{
-    inicio: 'ajuste',
-    fin: 'ajuste',
-    duracion: `${nuevasHoras}h ${nuevosMin}m`,
-    discordId: 'sistema'
-  }];
-
-  guardarTurnos(turnos);
-
-  return interaction.reply(
-    `✏️ Horas actualizadas para **${nombre}** → ${nuevasHoras}h ${nuevosMin}m`
-  );
-}
-
-
     // 🧵 CREAR EMPLEADO
-    if (interaction.commandName === 'crear_empleado') {
-      const nombre = interaction.options.getString('nombre');
+    if (interaction.commandName === "crear_empleado") {
+      const nombre = interaction.options.getString("nombre");
+
+      await empleados.updateOne(
+        { nombre },
+        { $setOnInsert: { nombre, totalMinutos: 0 } },
+        { upsert: true }
+      );
+
       const hilo = await interaction.channel.threads.create({
         name: nombre,
         autoArchiveDuration: 1440
@@ -120,12 +77,12 @@ if (interaction.commandName === 'editar_horas') {
 
       const fila = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId('iniciar_turno')
-          .setLabel('🟢 Iniciar turno')
+          .setCustomId("iniciar_turno")
+          .setLabel("🟢 Iniciar turno")
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
-          .setCustomId('finalizar_turno')
-          .setLabel('🔴 Finalizar turno')
+          .setCustomId("finalizar_turno")
+          .setLabel("🔴 Finalizar turno")
           .setStyle(ButtonStyle.Danger)
       );
 
@@ -135,71 +92,103 @@ if (interaction.commandName === 'editar_horas') {
       });
 
       return interaction.reply({
-        content: `✅ Hilo creado para **${nombre}**`,
+        content: `✅ Empleado **${nombre}** creado`,
         ephemeral: true
       });
     }
 
     // ⏱ HORAS TOTALES
-    if (interaction.commandName === 'horas_totales') {
-      const nombre = interaction.options.getString('nombre');
-      const turnos = cargarTurnos();
+    if (interaction.commandName === "horas_totales") {
+      const nombre = interaction.options.getString("nombre");
+      const emp = await empleados.findOne({ nombre });
 
-      if (!turnos[nombre]) {
-        return interaction.reply(`❌ No hay registros para **${nombre}**`);
+      if (!emp) {
+        return interaction.reply(`❌ No existe **${nombre}**`);
       }
 
-      const totalMin = turnos[nombre]
-        .map(t => parseDuracion(t.duracion))
-        .reduce((a, b) => a + b, 0);
-
-      const horas = Math.floor(totalMin / 60);
-      const minutos = totalMin % 60;
+      const horas = Math.floor(emp.totalMinutos / 60);
+      const minutos = emp.totalMinutos % 60;
 
       return interaction.reply(`⏱ **${nombre}** trabajó ${horas}h ${minutos}m`);
     }
 
     // 🏆 RANKING
-    if (interaction.commandName === 'ranking') {
-      const turnos = cargarTurnos();
-      const ranking = [];
+    if (interaction.commandName === "ranking") {
+      const lista = await empleados.find().sort({ totalMinutos: -1 }).toArray();
 
-      for (const empleado in turnos) {
-        const totalMin = turnos[empleado]
-          .map(t => parseDuracion(t.duracion))
-          .reduce((a, b) => a + b, 0);
-
-        ranking.push({ empleado, totalMin });
+      if (!lista.length) {
+        return interaction.reply("No hay datos todavía.");
       }
 
-      if (!ranking.length) {
-        return interaction.reply('No hay datos todavía.');
-      }
-
-      ranking.sort((a, b) => b.totalMin - a.totalMin);
-
-      const texto = ranking.map((r, i) => {
-        const h = Math.floor(r.totalMin / 60);
-        const m = r.totalMin % 60;
-        return `**${i + 1}. ${r.empleado}** — ${h}h ${m}m`;
-      }).join('\n');
+      const texto = lista.map((e, i) => {
+        const h = Math.floor(e.totalMinutos / 60);
+        const m = e.totalMinutos % 60;
+        return `**${i + 1}. ${e.nombre}** — ${h}h ${m}m`;
+      }).join("\n");
 
       return interaction.reply(`🏆 **Ranking**\n\n${texto}`);
     }
-    if (interaction.commandName === 'resetear_ranking') {
 
-  if (!interaction.member.permissions.has('Administrator')) {
-    return interaction.reply({
-      content: '❌ No tenés permisos para resetear el ranking.',
-      ephemeral: true
-    });
-  }
+    // ✏️ EDITAR HORAS
+    if (interaction.commandName === "editar_horas") {
+      if (!interaction.member.permissions.has("Administrator")) {
+        return interaction.reply({
+          content: "❌ Solo administradores.",
+          ephemeral: true
+        });
+      }
 
-  guardarTurnos({}); // ← usa tu función existente
+      const nombre = interaction.options.getString("nombre");
+      const horas = interaction.options.getInteger("horas");
+      const minutos = interaction.options.getInteger("minutos");
+      const operacion = interaction.options.getString("operacion");
 
-  return interaction.reply('✅ Ranking reiniciado correctamente.');
-}
+      const emp = await empleados.findOne({ nombre });
+      if (!emp) return interaction.reply(`❌ No existe **${nombre}**`);
 
+      let totalMin = emp.totalMinutos;
+      const ajuste = horas * 60 + minutos;
+
+      if (operacion === "sumar") totalMin += ajuste;
+      if (operacion === "restar") totalMin -= ajuste;
+      if (operacion === "reemplazar") totalMin = ajuste;
+      if (totalMin < 0) totalMin = 0;
+
+      await empleados.updateOne({ nombre }, { $set: { totalMinutos: totalMin } });
+
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+
+      return interaction.reply(`✏️ **${nombre}** → ${h}h ${m}m`);
+    }
+
+    // 🔄 RESET RANKING
+    if (interaction.commandName === "resetear_ranking") {
+      if (!interaction.member.permissions.has("Administrator")) {
+        return interaction.reply({
+          content: "❌ Sin permisos.",
+          ephemeral: true
+        });
+      }
+
+      await empleados.updateMany({}, { $set: { totalMinutos: 0 } });
+      await turnos.deleteMany({});
+      await turnosActivos.deleteMany({});
+
+      return interaction.reply("✅ Ranking reiniciado.");
+    }
+
+    // 👀 QUIÉN ESTÁ EN TURNO
+    if (interaction.commandName === "quien_esta_en_turno") {
+      const activos = await turnosActivos.find().toArray();
+
+      if (!activos.length) {
+        return interaction.reply("😴 Nadie está en turno.");
+      }
+
+      const texto = activos.map(a => `🟢 ${a.empleado}`).join("\n");
+      return interaction.reply(`👨‍🍳 En turno:\n\n${texto}`);
+    }
   }
 
   // ===============================
@@ -207,48 +196,77 @@ if (interaction.commandName === 'editar_horas') {
   // ===============================
   if (!interaction.isButton()) return;
 
-  const threadName = interaction.channel.name;
+  const empleado = interaction.channel.name;
   const userId = interaction.user.id;
-  let turnos = cargarTurnos();
 
-  if (interaction.customId === 'iniciar_turno') {
-    if (turnosActivos.has(userId)) {
-      return interaction.reply({ content: '⚠️ Ya tenés un turno activo.', ephemeral: true });
+  // 🟢 INICIAR TURNO
+  if (interaction.customId === "iniciar_turno") {
+    const activo = await turnosActivos.findOne({ discordId: userId });
+
+    if (activo) {
+      return interaction.reply({
+        content: "⚠️ Ya tenés un turno activo.",
+        ephemeral: true
+      });
     }
 
-    turnosActivos.set(userId, Date.now());
-    return interaction.reply({ content: `🟢 Turno iniciado para **${threadName}**`, ephemeral: true });
+    await turnosActivos.insertOne({
+      discordId: userId,
+      empleado,
+      inicio: new Date()
+    });
+
+    return interaction.reply({
+      content: `🟢 Turno iniciado para **${empleado}**`,
+      ephemeral: true
+    });
   }
 
-  if (interaction.customId === 'finalizar_turno') {
-    if (!turnosActivos.has(userId)) {
-      return interaction.reply({ content: '⚠️ No hay turno activo.', ephemeral: true });
+  // 🔴 FINALIZAR TURNO
+  if (interaction.customId === "finalizar_turno") {
+    const activo = await turnosActivos.findOne({ discordId: userId });
+
+    if (!activo) {
+      return interaction.reply({
+        content: "⚠️ No hay turno activo.",
+        ephemeral: true
+      });
     }
 
-    const inicio = turnosActivos.get(userId);
-    const fin = Date.now();
+    const inicio = new Date(activo.inicio);
+    const fin = new Date();
     const minutos = Math.floor((fin - inicio) / 60000);
-    const horas = Math.floor(minutos / 60);
-    const minsRestantes = minutos % 60;
 
-    turnosActivos.delete(userId);
+    await turnosActivos.deleteOne({ discordId: userId });
 
-    if (!turnos[threadName]) turnos[threadName] = [];
-
-    turnos[threadName].push({
-      inicio: new Date(inicio).toISOString(),
-      fin: new Date(fin).toISOString(),
-      duracion: `${horas}h ${minsRestantes}m`,
+    await turnos.insertOne({
+      empleado,
+      inicio,
+      fin,
+      duracionMin: minutos,
       discordId: userId
     });
 
-    guardarTurnos(turnos);
+    await empleados.updateOne(
+      { nombre: empleado },
+      { $inc: { totalMinutos: minutos } },
+      { upsert: true }
+    );
+
+    const h = Math.floor(minutos / 60);
+    const m = minutos % 60;
 
     return interaction.reply({
-      content: `🔴 Turno finalizado para **${threadName}**\n⏱ ${horas}h ${minsRestantes}m`,
+      content: `🔴 Turno finalizado\n⏱ ${h}h ${m}m`,
       ephemeral: true
     });
   }
 });
 
-client.login(TOKEN);
+// ===============================
+// 🚀 INICIO
+// ===============================
+(async () => {
+  await conectarDB();
+  client.login(TOKEN);
+})();
