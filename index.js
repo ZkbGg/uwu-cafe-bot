@@ -13,7 +13,11 @@ const TOKEN = process.env.TOKEN;
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
-
+console.log("===== VARIABLES DE ENTORNO =====");
+console.log("TOKEN:", process.env.TOKEN ? "OK" : "NO");
+console.log("CLIENT_ID:", process.env.CLIENT_ID || "NO");
+console.log("GUILD_ID:", process.env.GUILD_ID || "NO");
+console.log("================================");
 const TURNOS_FILE = './turnos.json';
 const turnosActivos = new Map();
 
