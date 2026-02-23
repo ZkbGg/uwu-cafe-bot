@@ -43,6 +43,15 @@ const commands = [
         .setDescription('Nombre del empleado')
         .setRequired(true)
     ),
+      new SlashCommandBuilder()
+    .setName('resetear_ganancia')
+    .setDescription('Reinicia la ganancia de un empleado a 0')
+    .addStringOption(option =>
+      option
+        .setName('nombre')
+        .setDescription('Nombre del empleado')
+        .setRequired(true)
+    ),
 new SlashCommandBuilder()
   .setName('quien_esta_en_turno')
   .setDescription('Muestra quién está actualmente en turno'),
@@ -73,7 +82,7 @@ new SlashCommandBuilder()
     option.setName('monto')
       .setDescription('Monto (no necesario para resetear)')
       .setRequired(false)),
-      
+
   new SlashCommandBuilder()
     .setName('ranking')
     .setDescription('Muestra el ranking de empleados')

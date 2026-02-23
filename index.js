@@ -222,9 +222,7 @@ if (interaction.commandName === "ganancias_totales") {
   let total = 0;
 
   const detalle = lista.map(e => {
-    const minutos = e.totalMinutos || 0;
-    const bloques = Math.floor(minutos / 180);
-    const ganancia = bloques * 12000;
+    const ganancia = e.ganancia || 0;
     total += ganancia;
     return `👤 ${e.nombre} — $${ganancia.toLocaleString("es-AR")}`;
   }).join("\n");
@@ -264,6 +262,16 @@ if (interaction.commandName === "editar_ganancia") {
   return interaction.reply(
     `💰 Ganancia de **${nombre}** → $${ganancia.toLocaleString("es-AR")}`
   );
+}
+if (interaction.commandName === "resetear_ganancia") {
+  const nombre = interaction.options.getString("nombre");
+
+  await empleados.updateOne(
+    { nombre },
+    { $set: { ganancia: 0 } }
+  );
+
+  interaction.reply(`🔄 Ganancia de ${nombre} reseteada a $0`);
 }
   }
 
