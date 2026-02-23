@@ -1,7 +1,9 @@
+require("dotenv").config();
 const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
+
 
 const commands = [
   new SlashCommandBuilder()
@@ -44,6 +46,7 @@ const commands = [
 new SlashCommandBuilder()
   .setName('quien_esta_en_turno')
   .setDescription('Muestra quién está actualmente en turno'),
+
     new SlashCommandBuilder()
   .setName('resetear_ranking')
   .setDescription('Reinicia todas las horas del ranking'),
