@@ -41,7 +41,9 @@ const commands = [
         .setDescription('Nombre del empleado')
         .setRequired(true)
     ),
-
+new SlashCommandBuilder()
+  .setName('quien_esta_en_turno')
+  .setDescription('Muestra quién está actualmente en turno'),
     new SlashCommandBuilder()
   .setName('resetear_ranking')
   .setDescription('Reinicia todas las horas del ranking'),
