@@ -52,6 +52,29 @@ new SlashCommandBuilder()
   .setDescription('Reinicia todas las horas del ranking'),
 
   new SlashCommandBuilder()
+  .setName('mi_ganancia')
+  .setDescription('Muestra tu ganancia acumulada'),
+
+new SlashCommandBuilder()
+  .setName('ganancias_totales')
+  .setDescription('Muestra las ganancias totales (admin)'),
+new SlashCommandBuilder()
+  .setName('editar_ganancia')
+  .setDescription('Editar ganancia de un empleado')
+  .addStringOption(option =>
+    option.setName('nombre')
+      .setDescription('Empleado')
+      .setRequired(true))
+  .addStringOption(option =>
+    option.setName('operacion')
+      .setDescription('sumar | restar | resetear')
+      .setRequired(true))
+  .addIntegerOption(option =>
+    option.setName('monto')
+      .setDescription('Monto (no necesario para resetear)')
+      .setRequired(false)),
+      
+  new SlashCommandBuilder()
     .setName('ranking')
     .setDescription('Muestra el ranking de empleados')
 ].map(cmd => cmd.toJSON());

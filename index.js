@@ -195,6 +195,76 @@ if (interaction.commandName === "editar_horas") {
       const texto = activos.map(a => `🟢 ${a.empleado}`).join("\n");
       return interaction.reply(`👨‍🍳 En turno:\n\n${texto}`);
     }
+
+if (interaction.commandName === "mi_ganancia") {
+  const empleado = interaction.channel.name;
+  const emp = await empleados.findOne({ nombre: empleado });
+
+  const ganancia = emp?.ganancia || 0;
+
+  return interaction.reply({
+    content: `💰 Tu ganancia: **$${ganancia.toLocaleString("es-AR")}**`,
+    ephemeral: true
+  });
+}
+
+
+if (interaction.commandName === "ganancias_totales") {
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({
+      content: "❌ Solo administradores.",
+      ephemeral: true
+    });
+  }
+
+  const lista = await empleados.find().toArray();
+
+  let total = 0;
+
+  const detalle = lista.map(e => {
+    const minutos = e.totalMinutos || 0;
+    const bloques = Math.floor(minutos / 180);
+    const ganancia = bloques * 12000;
+    total += ganancia;
+    return `👤 ${e.nombre} — $${ganancia.toLocaleString("es-AR")}`;
+  }).join("\n");
+
+  return interaction.reply(
+    `💰 **Ganancias totales generadas**\n\n${detalle}\n\n🧾 TOTAL: **$${total.toLocaleString("es-AR")}**`
+  );
+}
+
+if (interaction.commandName === "editar_ganancia") {
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({
+      content: "❌ Solo administradores.",
+      ephemeral: true
+    });
+  }
+
+  const nombre = interaction.options.getString("nombre");
+  const monto = interaction.options.getInteger("monto");
+  const operacion = interaction.options.getString("operacion");
+
+  const emp = await empleados.findOne({ nombre });
+  let ganancia = emp?.ganancia || 0;
+
+  if (operacion === "sumar") ganancia += monto;
+  if (operacion === "restar") ganancia -= monto;
+  if (operacion === "resetear") ganancia = 0;
+
+  if (ganancia < 0) ganancia = 0;
+
+  await empleados.updateOne(
+    { nombre },
+    { $set: { ganancia } },
+    { upsert: true }
+  );
+
+  return interaction.reply(
+    `💰 Ganancia de **${nombre}** → $${ganancia.toLocaleString("es-AR")}`
+  );
+}
   }
 
   // ===============================
@@ -253,11 +323,19 @@ if (interaction.commandName === "editar_horas") {
       discordId: userId
     });
 
-    await empleados.updateOne(
-      { nombre: empleado },
-      { $inc: { totalMinutos: minutos } },
-      { upsert: true }
-    );
+const bloques = Math.floor(minutos / 180);
+const pago = bloques * 12000;
+
+await empleados.updateOne(
+  { nombre: empleado },
+  {
+    $inc: {
+      totalMinutos: minutos,
+      ganancia: pago
+    }
+  },
+  { upsert: true }
+);
 
     const h = Math.floor(minutos / 60);
     const m = minutos % 60;
