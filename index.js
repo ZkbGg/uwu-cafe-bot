@@ -111,6 +111,46 @@ client.on(Events.InteractionCreate, async interaction => {
 
       return interaction.reply(`⏱ **${nombre}** trabajó ${horas}h ${minutos}m`);
     }
+// 📋 REGISTRO DE TURNOS (SOLO ADMIN)
+if (interaction.commandName === "registro") {
+
+  // 🔐 Verificar permisos
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({
+      content: "❌ Solo administradores pueden ver el registro.",
+      ephemeral: true
+    });
+  }
+
+  const nombre = interaction.options.getString("nombre");
+
+  const lista = await turnos
+    .find({ empleado: nombre })
+    .sort({ inicio: -1 })
+    .toArray();
+
+  if (!lista.length) {
+    return interaction.reply({
+      content: `❌ No hay turnos registrados para **${nombre}**`,
+      ephemeral: true
+    });
+  }
+
+  const texto = lista.map(t => {
+    const inicio = new Date(t.inicio).toLocaleString("es-AR");
+    const fin = new Date(t.fin).toLocaleString("es-AR");
+
+    const h = Math.floor(t.duracionMin / 60);
+    const m = t.duracionMin % 60;
+
+    return `🗓 ${inicio} → ${fin} (${h}h ${m}m)`;
+  }).join("\n");
+
+  return interaction.reply({
+    content: `📋 **Turnos de ${nombre}**\n\n${texto}`,
+    ephemeral: true // 👈 SOLO LO VE EL ADMIN
+  });
+}
 
     // 🏆 RANKING
 if (interaction.commandName === "ranking") {

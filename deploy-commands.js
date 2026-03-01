@@ -52,6 +52,14 @@ const commands = [
         .setDescription('Nombre del empleado')
         .setRequired(true)
     ),
+    new SlashCommandBuilder()
+  .setName('registro')
+  .setDescription('Muestra todos los turnos de un empleado')
+  .addStringOption(option =>
+    option.setName('nombre')
+      .setDescription('Nombre del empleado')
+      .setRequired(true)
+  ),
 new SlashCommandBuilder()
   .setName('quien_esta_en_turno')
   .setDescription('Muestra quién está actualmente en turno'),
