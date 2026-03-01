@@ -27,6 +27,75 @@ let empleados;
 let turnos;
 let turnosActivos;
 
+async function programarChequeoTurno(discordId, empleado, canalId) {
+  setTimeout(async () => {
+
+    const activo = await turnosActivos.findOne({ discordId });
+    if (!activo) return;
+
+    const canal = await client.channels.fetch(canalId);
+
+    const fila = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("seguir_turno")
+        .setLabel("✅ Sigo en servicio")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("terminar_turno_auto")
+        .setLabel("❌ Finalizar turno")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+await canal.send({
+  content: `⏰ <@${discordId}>, ¿seguís en servicio?`,
+  allowedMentions: { users: [discordId] },
+  components: [fila]
+});
+
+    // ⌛ cierre automático en 5 minutos
+    setTimeout(async () => {
+      const sigueActivo = await turnosActivos.findOne({ discordId });
+      if (!sigueActivo) return;
+
+      await finalizarTurnoAutomatico(discordId, empleado, canal);
+      canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad.`);
+    }, 5 * 60 * 1000);
+
+  }, 2 * 60 * 60 * 1000); // 2 horas
+}
+async function finalizarTurnoAutomatico(discordId, empleado, canal) {
+  const activo = await turnosActivos.findOne({ discordId });
+  if (!activo) return;
+
+  const inicio = new Date(activo.inicio);
+  const fin = new Date();
+  const minutos = Math.floor((fin - inicio) / 60000);
+
+  await turnosActivos.deleteOne({ discordId });
+
+  await turnos.insertOne({
+    empleado,
+    inicio,
+    fin,
+    duracionMin: minutos,
+    discordId
+  });
+
+  const bloques = Math.floor(minutos / 180);
+  const pago = bloques * 12000;
+
+  await empleados.updateOne(
+    { nombre: empleado },
+    {
+      $inc: {
+        totalMinutos: minutos,
+        ganancia: pago
+      }
+    },
+    { upsert: true }
+  );
+}
+
 async function conectarDB() {
   const mongo = new MongoClient(MONGO_URI);
   await mongo.connect();
@@ -136,9 +205,19 @@ if (interaction.commandName === "registro") {
     });
   }
 
+  // 🕒 Opciones de formato Argentina
+  const opcionesFecha = {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  };
+
   const texto = lista.map(t => {
-    const inicio = new Date(t.inicio).toLocaleString("es-AR");
-    const fin = new Date(t.fin).toLocaleString("es-AR");
+    const inicio = new Date(t.inicio).toLocaleString("es-AR", opcionesFecha);
+    const fin = new Date(t.fin).toLocaleString("es-AR", opcionesFecha);
 
     const h = Math.floor(t.duracionMin / 60);
     const m = t.duracionMin % 60;
@@ -323,28 +402,31 @@ if (interaction.commandName === "resetear_ganancia") {
   const empleado = interaction.channel.name;
   const userId = interaction.user.id;
 
-  // 🟢 INICIAR TURNO
-  if (interaction.customId === "iniciar_turno") {
-    const activo = await turnosActivos.findOne({ discordId: userId });
+// 🟢 INICIAR TURNO
+if (interaction.customId === "iniciar_turno") {
+  const activo = await turnosActivos.findOne({ discordId: userId });
 
-    if (activo) {
-      return interaction.reply({
-        content: "⚠️ Ya tenés un turno activo.",
-        ephemeral: true
-      });
-    }
-
-    await turnosActivos.insertOne({
-      discordId: userId,
-      empleado,
-      inicio: new Date()
-    });
-
+  if (activo) {
     return interaction.reply({
-      content: `🟢 Turno iniciado para **${empleado}**`,
+      content: "⚠️ Ya tenés un turno activo.",
       ephemeral: true
     });
   }
+
+  await turnosActivos.insertOne({
+    discordId: userId,
+    empleado,
+    inicio: new Date()
+  });
+
+  // 🚨 PROGRAMAR CHEQUEO CADA 2 HORAS
+  await programarChequeoTurno(userId, empleado, interaction.channel.id);
+
+  return interaction.reply({
+    content: `🟢 Turno iniciado para **${empleado}**`,
+    ephemeral: true
+  });
+}
 
   // 🔴 FINALIZAR TURNO
   if (interaction.customId === "finalizar_turno") {
@@ -373,6 +455,27 @@ if (interaction.commandName === "resetear_ganancia") {
 
 const bloques = Math.floor(minutos / 180);
 const pago = bloques * 12000;
+
+// ✅ SIGUE EN TURNO
+if (interaction.customId === "seguir_turno") {
+  await interaction.reply({
+    content: "👍 Perfecto, el turno continúa.",
+    ephemeral: true
+  });
+
+  // 🔁 Programar próximo chequeo
+  await programarChequeoTurno(userId, empleado, interaction.channel.id);
+}
+
+// ❌ FINALIZAR DESDE AVISO
+if (interaction.customId === "terminar_turno_auto") {
+  await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+  return interaction.reply({
+    content: "🔴 Turno finalizado.",
+    ephemeral: true
+  });
+}
 
 await empleados.updateOne(
   { nombre: empleado },

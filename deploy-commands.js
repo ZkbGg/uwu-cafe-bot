@@ -1,14 +1,15 @@
 require("dotenv").config();
-const { REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { REST, Routes, SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
 
 const commands = [
-  new SlashCommandBuilder()
+new SlashCommandBuilder()
   .setName('editar_horas')
   .setDescription('Editar horas de un empleado')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator) // 👈 SOLO ADMINS
   .addStringOption(option =>
     option.setName('nombre')
       .setDescription('Nombre del empleado')
@@ -78,6 +79,7 @@ new SlashCommandBuilder()
 new SlashCommandBuilder()
   .setName('editar_ganancia')
   .setDescription('Editar ganancia de un empleado')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator) // 👈 SOLO ADMINS
   .addStringOption(option =>
     option.setName('nombre')
       .setDescription('Empleado')
