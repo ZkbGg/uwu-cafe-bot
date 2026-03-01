@@ -401,107 +401,74 @@ if (interaction.commandName === "resetear_ganancia") {
   // ===============================
   // 🔘 BOTONES
   // ===============================
-  if (!interaction.isButton()) return;
+  if (interaction.isButton()) {
 
-  const empleado = interaction.channel.name;
-  const userId = interaction.user.id;
+    const empleado = interaction.channel.name;
+    const userId = interaction.user.id;
 
-// 🟢 INICIAR TURNO
-if (interaction.customId === "iniciar_turno") {
-  const activo = await turnosActivos.findOne({ discordId: userId });
+    // 🟢 INICIAR TURNO
+    if (interaction.customId === "iniciar_turno") {
+      const activo = await turnosActivos.findOne({ discordId: userId });
 
-  if (activo) {
-    return interaction.reply({
-      content: "⚠️ Ya tenés un turno activo.",
-      ephemeral: true
-    });
-  }
+      if (activo) {
+        return interaction.reply({
+          content: "⚠️ Ya tenés un turno activo.",
+          ephemeral: true
+        });
+      }
 
-  await turnosActivos.insertOne({
-    discordId: userId,
-    empleado,
-    inicio: new Date()
-  });
+      await turnosActivos.insertOne({
+        discordId: userId,
+        empleado,
+        inicio: new Date()
+      });
 
-  // 🚨 PROGRAMAR CHEQUEO CADA 2 HORAS
-  await programarChequeoTurno(userId, empleado, interaction.channel.id);
+      await programarChequeoTurno(userId, empleado, interaction.channel.id);
 
-  return interaction.reply({
-    content: `🟢 Turno iniciado para **${empleado}**`,
-    ephemeral: true
-  });
-}
-
-  // 🔴 FINALIZAR TURNO
-  if (interaction.customId === "finalizar_turno") {
-    const activo = await turnosActivos.findOne({ discordId: userId });
-
-    if (!activo) {
       return interaction.reply({
-        content: "⚠️ No hay turno activo.",
+        content: `🟢 Turno iniciado para **${empleado}**`,
         ephemeral: true
       });
     }
 
-    const inicio = new Date(activo.inicio);
-    const fin = new Date();
-    const minutos = Math.floor((fin - inicio) / 60000);
+    // 🔴 FINALIZAR TURNO MANUAL
+    if (interaction.customId === "finalizar_turno") {
+      await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
 
-    await turnosActivos.deleteOne({ discordId: userId });
-
-    await turnos.insertOne({
-      empleado,
-      inicio,
-      fin,
-      duracionMin: minutos,
-      discordId: userId
-    });
-
-const bloques = Math.floor(minutos / 180);
-const pago = bloques * 12000;
-
-// ✅ SIGUE EN TURNO
-if (interaction.customId === "seguir_turno") {
-  await interaction.reply({
-    content: "👍 Perfecto, el turno continúa.",
-    ephemeral: true
-  });
-
-  // 🔁 Programar próximo chequeo
-  await programarChequeoTurno(userId, empleado, interaction.channel.id);
-}
-
-// ❌ FINALIZAR DESDE AVISO
-if (interaction.customId === "terminar_turno_auto") {
-  await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
-
-  return interaction.reply({
-    content: "🔴 Turno finalizado.",
-    ephemeral: true
-  });
-}
-
-await empleados.updateOne(
-  { nombre: empleado },
-  {
-    $inc: {
-      totalMinutos: minutos,
-      ganancia: pago
+      return interaction.reply({
+        content: "🔴 Turno finalizado.",
+        ephemeral: true
+      });
     }
-  },
-  { upsert: true }
-);
 
-    const h = Math.floor(minutos / 60);
-    const m = minutos % 60;
+    // ✅ SIGUE EN TURNO
+    if (interaction.customId === "seguir_turno") {
+      await interaction.reply({
+        content: "👍 Perfecto, el turno continúa.",
+        ephemeral: true
+      });
 
-    return interaction.reply({
-      content: `🔴 Turno finalizado\n⏱ ${h}h ${m}m`,
-      ephemeral: true
-    });
+      await programarChequeoTurno(userId, empleado, interaction.channel.id);
+    }
+
+    // ❌ FINALIZAR DESDE AVISO
+    if (interaction.customId === "terminar_turno_auto") {
+      await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+      return interaction.reply({
+        content: "🔴 Turno finalizado por inactividad.",
+        ephemeral: true
+      });
+    }
+
+    return;
   }
-});
 
+  // ===============================
+  // COMANDOS SLASH (los tuyos siguen igual)
+  // ===============================
+});
+ 
 // ===============================
 // 🚀 INICIO
 // ===============================
