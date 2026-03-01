@@ -284,7 +284,10 @@ if (interaction.commandName === "editar_horas") {
   const h = Math.floor(total / 60);
   const m = total % 60;
 
-  return interaction.reply(`✏️ **${nombre}** → ${h}h ${m}m`);
+  return interaction.reply({
+    content: `✏️ **${nombre}** → ${h}h ${m}m`,
+    ephemeral: true
+  });
 }
 
     // 🔄 RESET RANKING
@@ -378,9 +381,10 @@ if (interaction.commandName === "editar_ganancia") {
     { upsert: true }
   );
 
-  return interaction.reply(
-    `💰 Ganancia de **${nombre}** → $${ganancia.toLocaleString("es-AR")}`
-  );
+  return interaction.reply({
+      content: `💰 Ganancia de **${nombre}** → $${ganancia.toLocaleString("es-AR")}`,
+      ephemeral: true
+  });
 }
 if (interaction.commandName === "resetear_ganancia") {
   const nombre = interaction.options.getString("nombre");
