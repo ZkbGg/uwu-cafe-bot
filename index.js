@@ -265,25 +265,14 @@ if (interaction.commandName === "editar_horas") {
 
   const ajuste = horas * 60 + minutos;
 
+  const turnoActivo = await turnosActivos.findOne({ empleado: nombre });
   const emp = await empleados.findOne({ nombre });
 
   let total = emp?.totalMinutos || 0;
 
-  if (operacion === "sumar") total += ajuste;
-  if (operacion === "restar") total -= ajuste;
-  if (operacion === "reemplazar") total = ajuste;
-
-  if (total < 0) total = 0;
-
-  await empleados.updateOne(
-    { nombre },
-    { $set: { totalMinutos: total } },
-    { upsert: true }
-  );
-
-  // 🔥 AJUSTAR TURNO ACTIVO SI EXISTE
-  const turnoActivo = await turnosActivos.findOne({ empleado: nombre });
-
+  // ============================
+  // 🔥 SI HAY TURNO ACTIVO
+  // ============================
   if (turnoActivo) {
     const ahora = new Date();
     let nuevoInicio = new Date(turnoActivo.inicio);
@@ -304,13 +293,42 @@ if (interaction.commandName === "editar_horas") {
       { empleado: nombre },
       { $set: { inicio: nuevoInicio } }
     );
+
+    // 🔁 recalcular aviso de 2 horas
+    const tiempoTranscurrido = ahora - nuevoInicio;
+    const tiempoRestante = (2 * 60 * 60 * 1000) - tiempoTranscurrido;
+
+    if (tiempoRestante <= 0) {
+      // ya pasó las 2h → dispara aviso inmediato
+      await programarChequeoTurno(turnoActivo.discordId, nombre, interaction.channel.id);
+    } else {
+      setTimeout(() => {
+        programarChequeoTurno(turnoActivo.discordId, nombre, interaction.channel.id);
+      }, tiempoRestante);
+    }
+
+  } else {
+    // ============================
+    // 📊 SI NO HAY TURNO ACTIVO
+    // ============================
+    if (operacion === "sumar") total += ajuste;
+    if (operacion === "restar") total -= ajuste;
+    if (operacion === "reemplazar") total = ajuste;
+
+    if (total < 0) total = 0;
+
+    await empleados.updateOne(
+      { nombre },
+      { $set: { totalMinutos: total } },
+      { upsert: true }
+    );
   }
 
   const h = Math.floor(total / 60);
   const m = total % 60;
 
   return interaction.reply({
-    content: `✏️ **${nombre}** → ${h}h ${m}m`,
+    content: `✏️ **${nombre}** actualizado.`,
     ephemeral: true
   });
 
