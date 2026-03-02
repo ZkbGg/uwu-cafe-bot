@@ -228,6 +228,51 @@ if (interaction.customId === "terminar_turno_auto") {
 
       return interaction.reply(`⏱ **${nombre}** trabajó ${horas}h ${minutos}m`);
     }
+
+    // 🔴 FORZAR CIERRE DE TURNO (ADMIN)
+if (interaction.commandName === "terminar_turno") {
+
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({
+      content: "❌ Solo administradores.",
+      ephemeral: true
+    });
+  }
+
+  const nombre = interaction.options.getString("nombre");
+
+  // buscar turno activo por nombre
+  const turnoActivo = await turnosActivos.findOne({ empleado: nombre });
+
+  if (!turnoActivo) {
+    return interaction.reply({
+      content: `⚠️ **${nombre}** no tiene un turno activo.`,
+      ephemeral: true
+    });
+  }
+
+  const minutos = await finalizarTurnoAutomatico(
+    turnoActivo.discordId,
+    nombre,
+    interaction.channel
+  );
+
+  if (minutos === null) {
+    return interaction.reply({
+      content: "⚠️ No se pudo cerrar el turno.",
+      ephemeral: true
+    });
+  }
+
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+
+  return interaction.reply({
+    content: `🔴 Turno de **${nombre}** cerrado.\n⏱ Tiempo trabajado: **${h}h ${m}m**`,
+    ephemeral: true
+  });
+}
+
 // 📋 REGISTRO DE TURNOS (SOLO ADMIN)
 if (interaction.commandName === "registro") {
 
