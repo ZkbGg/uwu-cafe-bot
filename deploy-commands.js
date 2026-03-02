@@ -65,6 +65,22 @@ new SlashCommandBuilder()
   .setName('quien_esta_en_turno')
   .setDescription('Muestra quién está actualmente en turno'),
 
+  new SlashCommandBuilder()
+  .setName("registros_borrar")
+  .setDescription("🧾 Borra todo el historial de turnos")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+new SlashCommandBuilder()
+  .setName("terminar_turno")
+  .setDescription("🔴 Fuerza el cierre del turno activo de un empleado")
+  .addStringOption(option =>
+    option
+      .setName("nombre")
+      .setDescription("Nombre del empleado")
+      .setRequired(true)
+  )
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
     new SlashCommandBuilder()
   .setName('resetear_ranking')
   .setDescription('Reinicia todas las horas del ranking'),

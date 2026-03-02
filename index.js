@@ -63,11 +63,14 @@ async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 6
       const sigueActivo = await turnosActivos.findOne({ discordId });
       if (!sigueActivo) return;
 
-      const cerrado = await finalizarTurnoAutomatico(discordId, empleado, canal);
+      const minutos = await finalizarTurnoAutomatico(discordId, empleado, canal);
 
-      if (cerrado) {
-        canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad.`);
-      }
+if (minutos !== null) {
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+
+  canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad. Total: **${h}h ${m}m**.`);
+}
 
     }, 5 * 60 * 1000);
 
@@ -78,7 +81,7 @@ async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 6
 async function finalizarTurnoAutomatico(discordId, empleado, canal) {
   try {
     const activo = await turnosActivos.findOne({ discordId });
-    if (!activo) return false; // 👈 no había turno
+    if (!activo) return null; // 👈 no había turno
 
     const inicio = new Date(activo.inicio);
     const fin = new Date();
@@ -108,17 +111,17 @@ async function finalizarTurnoAutomatico(discordId, empleado, canal) {
       { upsert: true }
     );
 
-    // 🧹 limpiar timer activo
+    // 🧹 limpiar timer
     if (timersTurnos.has(discordId)) {
       clearTimeout(timersTurnos.get(discordId));
       timersTurnos.delete(discordId);
     }
 
-    return true; // 👈 turno cerrado correctamente
+    return minutos; // 👈 devolvemos duración real
 
   } catch (err) {
     console.error("❌ Error al finalizar turno:", err);
-    return false;
+    return null;
   }
 }
 
@@ -254,6 +257,25 @@ if (interaction.commandName === "registro") {
   return interaction.reply({
     content: `📋 **Turnos de ${nombre}**\n\n${texto}`,
     ephemeral: true // 👈 SOLO LO VE EL ADMIN
+  });
+}
+
+// 🧾 BORRAR HISTORIAL DE TURNOS
+if (interaction.commandName === "registros_borrar") {
+
+  // 🔐 solo admins
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({
+      content: "❌ Solo administradores pueden usar este comando.",
+      ephemeral: true
+    });
+  }
+
+  const resultado = await turnos.deleteMany({});
+
+  return interaction.reply({
+    content: `🧾 Historial de turnos eliminado (${resultado.deletedCount} registros).`,
+    ephemeral: true
   });
 }
 
@@ -501,18 +523,20 @@ if (interaction.commandName === "resetear_ganancia") {
 
     // 🔴 FINALIZAR TURNO MANUAL
 if (interaction.customId === "finalizar_turno") {
+  const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
 
-  const cerrado = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
-
-  if (!cerrado) {
+  if (minutos === null) {
     return interaction.reply({
       content: "⚠️ No tenés un turno activo.",
       ephemeral: true
     });
   }
 
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+
   return interaction.reply({
-    content: "🔴 Turno finalizado.",
+    content: `🔴 Turno finalizado. Trabajaste **${h}h ${m}m**.`,
     ephemeral: true
   });
 }
@@ -539,10 +563,22 @@ if (interaction.customId === "terminar_turno_auto") {
     });
   }
 
-  await interaction.update({
-    content: "🔴 Turno finalizado por inactividad.",
+const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+if (minutos === null) {
+  return interaction.update({
+    content: "⚠️ El turno ya estaba cerrado.",
     components: []
   });
+}
+
+const h = Math.floor(minutos / 60);
+const m = minutos % 60;
+
+await interaction.update({
+  content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
+  components: []
+});
 
 }
 
