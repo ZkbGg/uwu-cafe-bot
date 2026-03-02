@@ -249,7 +249,7 @@ if (interaction.commandName === "ranking") {
   return interaction.reply(`🏆 **Ranking**\n\n${texto}`);
 }
 
-    // ✏️ EDITAR HORAS
+// ✏️ EDITAR HORAS
 if (interaction.commandName === "editar_horas") {
   if (!interaction.member.permissions.has("Administrator")) {
     return interaction.reply({
@@ -281,6 +281,31 @@ if (interaction.commandName === "editar_horas") {
     { upsert: true }
   );
 
+  // 🔥 AJUSTAR TURNO ACTIVO SI EXISTE
+  const turnoActivo = await turnosActivos.findOne({ empleado: nombre });
+
+  if (turnoActivo) {
+    const ahora = new Date();
+    let nuevoInicio = new Date(turnoActivo.inicio);
+
+    if (operacion === "reemplazar") {
+      nuevoInicio = new Date(ahora.getTime() - ajuste * 60000);
+    }
+
+    if (operacion === "sumar") {
+      nuevoInicio = new Date(nuevoInicio.getTime() - ajuste * 60000);
+    }
+
+    if (operacion === "restar") {
+      nuevoInicio = new Date(nuevoInicio.getTime() + ajuste * 60000);
+    }
+
+    await turnosActivos.updateOne(
+      { empleado: nombre },
+      { $set: { inicio: nuevoInicio } }
+    );
+  }
+
   const h = Math.floor(total / 60);
   const m = total % 60;
 
@@ -288,6 +313,7 @@ if (interaction.commandName === "editar_horas") {
     content: `✏️ **${nombre}** → ${h}h ${m}m`,
     ephemeral: true
   });
+
 }
 
     // 🔄 RESET RANKING
