@@ -553,33 +553,22 @@ if (interaction.customId === "seguir_turno") {
 
     // ❌ FINALIZAR DESDE AVISO
 if (interaction.customId === "terminar_turno_auto") {
+  const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
 
-  const cerrado = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
-
-  if (!cerrado) {
+  if (minutos === null) {
     return interaction.update({
       content: "⚠️ El turno ya estaba cerrado.",
       components: []
     });
   }
 
-const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
 
-if (minutos === null) {
-  return interaction.update({
-    content: "⚠️ El turno ya estaba cerrado.",
+  await interaction.update({
+    content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
     components: []
   });
-}
-
-const h = Math.floor(minutos / 60);
-const m = minutos % 60;
-
-await interaction.update({
-  content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
-  components: []
-});
-
 }
 
     return;
