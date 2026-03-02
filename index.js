@@ -11,7 +11,6 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const MONGO_URI = process.env.MONGO_URI;
-const timersTurnos = new Map();
 
 // ===============================
 // 🤖 DISCORD CLIENT
@@ -27,10 +26,11 @@ let db;
 let empleados;
 let turnos;
 let turnosActivos;
+const timersTurnos = new Map();
 
-async function programarChequeoTurno(discordId, empleado, canalId) {async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
+async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
-  // cancelar timer anterior si existe
+  // 🧹 cancelar timer anterior si existe
   if (timersTurnos.has(discordId)) {
     clearTimeout(timersTurnos.get(discordId));
   }
@@ -61,39 +61,8 @@ async function programarChequeoTurno(discordId, empleado, canalId) {async functi
   }, delay);
 
   timersTurnos.set(discordId, timeout);
-}}
-async function finalizarTurnoAutomatico(discordId, empleado, canal) {
-  const activo = await turnosActivos.findOne({ discordId });
-  if (!activo) return;
-
-  const inicio = new Date(activo.inicio);
-  const fin = new Date();
-  const minutos = Math.floor((fin - inicio) / 60000);
-
-  await turnosActivos.deleteOne({ discordId });
-
-  await turnos.insertOne({
-    empleado,
-    inicio,
-    fin,
-    duracionMin: minutos,
-    discordId
-  });
-
-  const bloques = Math.floor(minutos / 180);
-  const pago = bloques * 12000;
-
-  await empleados.updateOne(
-    { nombre: empleado },
-    {
-      $inc: {
-        totalMinutos: minutos,
-        ganancia: pago
-      }
-    },
-    { upsert: true }
-  );
 }
+
 
 async function conectarDB() {
   const mongo = new MongoClient(MONGO_URI);
