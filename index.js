@@ -27,15 +27,17 @@ let empleados;
 let turnos;
 let turnosActivos;
 const timersTurnos = new Map();
+const timersInactividad = new Map();
 
 async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
-  // 🧹 cancelar timer anterior si existe
+  // 🧹 cancelar timer de aviso anterior
   if (timersTurnos.has(discordId)) {
     clearTimeout(timersTurnos.get(discordId));
+    timersTurnos.delete(discordId);
   }
 
-  const timeout = setTimeout(async () => {
+  const timeoutAviso = setTimeout(async () => {
     const activo = await turnosActivos.findOne({ discordId });
     if (!activo) return;
 
@@ -58,25 +60,38 @@ async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 6
       components: [fila]
     });
 
-    // ⌛ ESPERAR 5 MINUTOS PARA CIERRE AUTOMÁTICO
-    setTimeout(async () => {
+    // ===============================
+    // ⌛ TIMER DE INACTIVIDAD (5 MIN)
+    // ===============================
+
+    // 🧹 cancelar uno anterior si existía
+    if (timersInactividad.has(discordId)) {
+      clearTimeout(timersInactividad.get(discordId));
+      timersInactividad.delete(discordId);
+    }
+
+    const timeoutInactividad = setTimeout(async () => {
       const sigueActivo = await turnosActivos.findOne({ discordId });
       if (!sigueActivo) return;
 
       const minutos = await finalizarTurnoAutomatico(discordId, empleado, canal);
 
-if (minutos !== null) {
-  const h = Math.floor(minutos / 60);
-  const m = minutos % 60;
+      if (minutos !== null) {
+        const h = Math.floor(minutos / 60);
+        const m = minutos % 60;
 
-  canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad. Total: **${h}h ${m}m**.`);
-}
+        canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad. Total: **${h}h ${m}m**.`);
+      }
+
+      timersInactividad.delete(discordId);
 
     }, 5 * 60 * 1000);
 
+    timersInactividad.set(discordId, timeoutInactividad);
+
   }, delay);
 
-  timersTurnos.set(discordId, timeout);
+  timersTurnos.set(discordId, timeoutAviso);
 }
 async function finalizarTurnoAutomatico(discordId, empleado, canal) {
   try {
@@ -111,11 +126,16 @@ async function finalizarTurnoAutomatico(discordId, empleado, canal) {
       { upsert: true }
     );
 
-    // 🧹 limpiar timer
-    if (timersTurnos.has(discordId)) {
-      clearTimeout(timersTurnos.get(discordId));
-      timersTurnos.delete(discordId);
-    }
+// 🧹 limpiar timers
+if (timersTurnos.has(discordId)) {
+  clearTimeout(timersTurnos.get(discordId));
+  timersTurnos.delete(discordId);
+}
+
+if (timersInactividad.has(discordId)) {
+  clearTimeout(timersInactividad.get(discordId));
+  timersInactividad.delete(discordId);
+}
 
     return minutos; // 👈 devolvemos duración real
 
@@ -194,25 +214,6 @@ client.on(Events.InteractionCreate, async interaction => {
         ephemeral: true
       });
     }
-        // ❌ FINALIZAR DESDE AVISO
-if (interaction.customId === "terminar_turno_auto") {
-  const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
-
-  if (minutos === null) {
-    return interaction.update({
-      content: "⚠️ El turno ya estaba cerrado.",
-      components: []
-    });
-  }
-
-  const h = Math.floor(minutos / 60);
-  const m = minutos % 60;
-
-  await interaction.update({
-    content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
-    components: []
-  });
-}
 
     // ⏱ HORAS TOTALES
     if (interaction.commandName === "horas_totales") {
@@ -414,7 +415,7 @@ await programarChequeoTurno(
   turnoActivo.discordId,
   nombre,
   interaction.channel.id,
-  tiempoRestante > 0 ? tiempoRestante : 0
+  tiempoRestante > 0 ? tiempoRestante : 1000
 );
 
   } else {
@@ -557,9 +558,40 @@ if (interaction.commandName === "resetear_ganancia") {
   // ===============================
   if (interaction.isButton()) {
 
-    const empleado = interaction.channel.name;
-    const userId = interaction.user.id;
+  const empleado = interaction.channel.name;
+  const presionadorId = interaction.user.id;
 
+  const turnoActivo = await turnosActivos.findOne({ empleado });
+
+  // 🔒 evitar que otros usen los botones
+  if (turnoActivo && turnoActivo.discordId !== presionadorId) {
+    return interaction.reply({
+      content: "❌ Este botón no es para vos.",
+      ephemeral: true
+    });
+  }
+
+  const userId = turnoActivo?.discordId || presionadorId;
+
+        // ❌ FINALIZAR DESDE AVISO
+if (interaction.customId === "terminar_turno_auto") {
+  const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+  if (minutos === null) {
+    return interaction.update({
+      content: "⚠️ El turno ya estaba cerrado.",
+      components: []
+    });
+  }
+
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+
+  await interaction.update({
+    content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
+    components: []
+  });
+}
     // 🟢 INICIAR TURNO
     if (interaction.customId === "iniciar_turno") {
       const activo = await turnosActivos.findOne({ discordId: userId });
@@ -607,11 +639,19 @@ if (interaction.customId === "finalizar_turno") {
 
     // ✅ SIGUE EN TURNO
 if (interaction.customId === "seguir_turno") {
+
+  // 🧹 cancelar cierre por inactividad
+  if (timersInactividad.has(userId)) {
+    clearTimeout(timersInactividad.get(userId));
+    timersInactividad.delete(userId);
+  }
+
   await interaction.update({
     content: "👍 Perfecto, el turno continúa.",
     components: []
   });
 
+  // 🔁 reiniciar contador de 2 horas
   await programarChequeoTurno(userId, empleado, interaction.channel.id);
 }
 
