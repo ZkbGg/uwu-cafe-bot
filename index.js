@@ -62,7 +62,49 @@ async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 6
 
   timersTurnos.set(discordId, timeout);
 }
+async function finalizarTurnoAutomatico(discordId, empleado, canal) {
+  try {
+    const activo = await turnosActivos.findOne({ discordId });
+    if (!activo) return;
 
+    const inicio = new Date(activo.inicio);
+    const fin = new Date();
+    const minutos = Math.floor((fin - inicio) / 60000);
+
+    await turnosActivos.deleteOne({ discordId });
+
+    await turnos.insertOne({
+      empleado,
+      inicio,
+      fin,
+      duracionMin: minutos,
+      discordId
+    });
+
+    const bloques = Math.floor(minutos / 180);
+    const pago = bloques * 12000;
+
+    await empleados.updateOne(
+      { nombre: empleado },
+      {
+        $inc: {
+          totalMinutos: minutos,
+          ganancia: pago
+        }
+      },
+      { upsert: true }
+    );
+
+    // 🧹 limpiar timer activo
+    if (timersTurnos.has(discordId)) {
+      clearTimeout(timersTurnos.get(discordId));
+      timersTurnos.delete(discordId);
+    }
+
+  } catch (err) {
+    console.error("❌ Error al finalizar turno:", err);
+  }
+}
 
 async function conectarDB() {
   const mongo = new MongoClient(MONGO_URI);
@@ -442,14 +484,14 @@ if (interaction.commandName === "resetear_ganancia") {
     }
 
     // 🔴 FINALIZAR TURNO MANUAL
-    if (interaction.customId === "finalizar_turno") {
-      await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+if (interaction.customId === "finalizar_turno") {
+  await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
 
-      return interaction.reply({
-        content: "🔴 Turno finalizado.",
-        ephemeral: true
-      });
-    }
+  return interaction.reply({
+    content: "🔴 Turno finalizado.",
+    ephemeral: true
+  });
+}
 
     // ✅ SIGUE EN TURNO
     if (interaction.customId === "seguir_turno") {
