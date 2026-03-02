@@ -58,6 +58,19 @@ async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 6
       components: [fila]
     });
 
+    // ⌛ ESPERAR 5 MINUTOS PARA CIERRE AUTOMÁTICO
+    setTimeout(async () => {
+      const sigueActivo = await turnosActivos.findOne({ discordId });
+      if (!sigueActivo) return;
+
+      const cerrado = await finalizarTurnoAutomatico(discordId, empleado, canal);
+
+      if (cerrado) {
+        canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad.`);
+      }
+
+    }, 5 * 60 * 1000);
+
   }, delay);
 
   timersTurnos.set(discordId, timeout);
@@ -65,7 +78,7 @@ async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 6
 async function finalizarTurnoAutomatico(discordId, empleado, canal) {
   try {
     const activo = await turnosActivos.findOne({ discordId });
-    if (!activo) return;
+    if (!activo) return false; // 👈 no había turno
 
     const inicio = new Date(activo.inicio);
     const fin = new Date();
@@ -101,8 +114,11 @@ async function finalizarTurnoAutomatico(discordId, empleado, canal) {
       timersTurnos.delete(discordId);
     }
 
+    return true; // 👈 turno cerrado correctamente
+
   } catch (err) {
     console.error("❌ Error al finalizar turno:", err);
+    return false;
   }
 }
 
@@ -275,7 +291,7 @@ if (interaction.commandName === "editar_horas") {
 
   const ajuste = horas * 60 + minutos;
 
- const turnoActivo = await turnosActivos.findOne({ discordId: interaction.user.id });
+ const turnoActivo = await turnosActivos.findOne({ empleado: nombre });
   const emp = await empleados.findOne({ nombre });
 
   let total = emp?.totalMinutos || 0;
@@ -485,7 +501,15 @@ if (interaction.commandName === "resetear_ganancia") {
 
     // 🔴 FINALIZAR TURNO MANUAL
 if (interaction.customId === "finalizar_turno") {
-  await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+  const cerrado = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+  if (!cerrado) {
+    return interaction.reply({
+      content: "⚠️ No tenés un turno activo.",
+      ephemeral: true
+    });
+  }
 
   return interaction.reply({
     content: "🔴 Turno finalizado.",
@@ -494,24 +518,33 @@ if (interaction.customId === "finalizar_turno") {
 }
 
     // ✅ SIGUE EN TURNO
-    if (interaction.customId === "seguir_turno") {
-      await interaction.reply({
-        content: "👍 Perfecto, el turno continúa.",
-        ephemeral: true
-      });
+if (interaction.customId === "seguir_turno") {
+  await interaction.update({
+    content: "👍 Perfecto, el turno continúa.",
+    components: []
+  });
 
-      await programarChequeoTurno(userId, empleado, interaction.channel.id);
-    }
+  await programarChequeoTurno(userId, empleado, interaction.channel.id);
+}
 
     // ❌ FINALIZAR DESDE AVISO
-    if (interaction.customId === "terminar_turno_auto") {
-      await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+if (interaction.customId === "terminar_turno_auto") {
 
-      return interaction.reply({
-        content: "🔴 Turno finalizado por inactividad.",
-        ephemeral: true
-      });
-    }
+  const cerrado = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+  if (!cerrado) {
+    return interaction.update({
+      content: "⚠️ El turno ya estaba cerrado.",
+      components: []
+    });
+  }
+
+  await interaction.update({
+    content: "🔴 Turno finalizado por inactividad.",
+    components: []
+  });
+
+}
 
     return;
   }
