@@ -11,6 +11,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const MONGO_URI = process.env.MONGO_URI;
+const timersTurnos = new Map();
 
 // ===============================
 // 🤖 DISCORD CLIENT
@@ -27,9 +28,14 @@ let empleados;
 let turnos;
 let turnosActivos;
 
-async function programarChequeoTurno(discordId, empleado, canalId) {
-  setTimeout(async () => {
+async function programarChequeoTurno(discordId, empleado, canalId) {async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
+  // cancelar timer anterior si existe
+  if (timersTurnos.has(discordId)) {
+    clearTimeout(timersTurnos.get(discordId));
+  }
+
+  const timeout = setTimeout(async () => {
     const activo = await turnosActivos.findOne({ discordId });
     if (!activo) return;
 
@@ -46,23 +52,16 @@ async function programarChequeoTurno(discordId, empleado, canalId) {
         .setStyle(ButtonStyle.Danger)
     );
 
-await canal.send({
-  content: `⏰ <@${discordId}>, ¿seguís en servicio?`,
-  allowedMentions: { users: [discordId] },
-  components: [fila]
-});
+    await canal.send({
+      content: `⏰ <@${discordId}>, ¿seguís en servicio?`,
+      allowedMentions: { users: [discordId] },
+      components: [fila]
+    });
 
-    // ⌛ cierre automático en 5 minutos
-    setTimeout(async () => {
-      const sigueActivo = await turnosActivos.findOne({ discordId });
-      if (!sigueActivo) return;
+  }, delay);
 
-      await finalizarTurnoAutomatico(discordId, empleado, canal);
-      canal.send(`⌛ Turno de **${empleado}** cerrado por inactividad.`);
-    }, 5 * 60 * 1000);
-
-  }, 2 * 60 * 60 * 1000); // 2 horas
-}
+  timersTurnos.set(discordId, timeout);
+}}
 async function finalizarTurnoAutomatico(discordId, empleado, canal) {
   const activo = await turnosActivos.findOne({ discordId });
   if (!activo) return;
@@ -265,7 +264,7 @@ if (interaction.commandName === "editar_horas") {
 
   const ajuste = horas * 60 + minutos;
 
-  const turnoActivo = await turnosActivos.findOne({ empleado: nombre });
+ const turnoActivo = await turnosActivos.findOne({ discordId: interaction.user.id });
   const emp = await empleados.findOne({ nombre });
 
   let total = emp?.totalMinutos || 0;
@@ -289,23 +288,21 @@ if (interaction.commandName === "editar_horas") {
       nuevoInicio = new Date(nuevoInicio.getTime() + ajuste * 60000);
     }
 
-    await turnosActivos.updateOne(
-      { empleado: nombre },
-      { $set: { inicio: nuevoInicio } }
-    );
+await turnosActivos.updateOne(
+  { discordId: turnoActivo.discordId },
+  { $set: { inicio: nuevoInicio } }
+);
 
-    // 🔁 recalcular aviso de 2 horas
-    const tiempoTranscurrido = ahora - nuevoInicio;
-    const tiempoRestante = (2 * 60 * 60 * 1000) - tiempoTranscurrido;
+// 🔁 recalcular aviso de 2 horas correctamente
+const tiempoTranscurrido = ahora - nuevoInicio;
+const tiempoRestante = (2 * 60 * 60 * 1000) - tiempoTranscurrido;
 
-    if (tiempoRestante <= 0) {
-      // ya pasó las 2h → dispara aviso inmediato
-      await programarChequeoTurno(turnoActivo.discordId, nombre, interaction.channel.id);
-    } else {
-      setTimeout(() => {
-        programarChequeoTurno(turnoActivo.discordId, nombre, interaction.channel.id);
-      }, tiempoRestante);
-    }
+await programarChequeoTurno(
+  turnoActivo.discordId,
+  nombre,
+  interaction.channel.id,
+  tiempoRestante > 0 ? tiempoRestante : 0
+);
 
   } else {
     // ============================
