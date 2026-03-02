@@ -194,6 +194,25 @@ client.on(Events.InteractionCreate, async interaction => {
         ephemeral: true
       });
     }
+        // ❌ FINALIZAR DESDE AVISO
+if (interaction.customId === "terminar_turno_auto") {
+  const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
+
+  if (minutos === null) {
+    return interaction.update({
+      content: "⚠️ El turno ya estaba cerrado.",
+      components: []
+    });
+  }
+
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+
+  await interaction.update({
+    content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
+    components: []
+  });
+}
 
     // ⏱ HORAS TOTALES
     if (interaction.commandName === "horas_totales") {
@@ -549,26 +568,6 @@ if (interaction.customId === "seguir_turno") {
   });
 
   await programarChequeoTurno(userId, empleado, interaction.channel.id);
-}
-
-    // ❌ FINALIZAR DESDE AVISO
-if (interaction.customId === "terminar_turno_auto") {
-  const minutos = await finalizarTurnoAutomatico(userId, empleado, interaction.channel);
-
-  if (minutos === null) {
-    return interaction.update({
-      content: "⚠️ El turno ya estaba cerrado.",
-      components: []
-    });
-  }
-
-  const h = Math.floor(minutos / 60);
-  const m = minutos % 60;
-
-  await interaction.update({
-    content: `🔴 Turno finalizado por inactividad. Trabajaste **${h}h ${m}m**.`,
-    components: []
-  });
 }
 
     return;
