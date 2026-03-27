@@ -33,7 +33,7 @@ let turnosActivos;
 const timersTurnos = new Map();
 const timersInactividad = new Map();
 let convenios; // nueva colección
-const CANAL_CONVENIO = "🤝┃𝗖𝗼𝗻𝘃𝗲𝗻𝗶𝗼-pdlc"; // 👈 cambiá esto por el nombre exacto de tu canal
+const CANAL_CONVENIO_ID = "1485904206664568863"; // ID del canal de convenio policial
 
 async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
@@ -704,7 +704,7 @@ if (interaction.customId === "seguir_turno") {
 // ===============================
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
-  if (message.channel.name !== CANAL_CONVENIO) return;
+  if (message.channel.id !== CANAL_CONVENIO_ID) return; // 👈 comparar por ID
 
   const numero = parseInt(message.content.trim());
   if (isNaN(numero) || numero <= 0) return; // ignora si no es número positivo
