@@ -16,7 +16,11 @@ const MONGO_URI = process.env.MONGO_URI;
 // 🤖 DISCORD CLIENT
 // ===============================
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent // 👈 necesario para leer el contenido
+  ]
 });
 
 // ===============================
