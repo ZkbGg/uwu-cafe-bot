@@ -65,6 +65,21 @@ new SlashCommandBuilder()
   .setName('quien_esta_en_turno')
   .setDescription('Muestra quién está actualmente en turno'),
 
+new SlashCommandBuilder()
+  .setName("convenio_cargar")
+  .setDescription("Carga o recarga el saldo del convenio policial")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addIntegerOption(option =>
+    option
+      .setName("monto")
+      .setDescription("Monto a cargar")
+      .setRequired(true)
+  ),
+
+new SlashCommandBuilder()
+  .setName("convenio_ver")
+  .setDescription("Ver el saldo actual del convenio policial"),
+
   new SlashCommandBuilder()
   .setName("registros_borrar")
   .setDescription("🧾 Borra todo el historial de turnos")

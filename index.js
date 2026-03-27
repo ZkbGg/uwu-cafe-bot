@@ -28,6 +28,8 @@ let turnos;
 let turnosActivos;
 const timersTurnos = new Map();
 const timersInactividad = new Map();
+let convenios; // nueva colección
+const CANAL_CONVENIO = "🤝┃𝗖𝗼𝗻𝘃𝗲𝗻𝗶𝗼-pdlc"; // 👈 cambiá esto por el nombre exacto de tu canal
 
 async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
@@ -154,6 +156,7 @@ async function conectarDB() {
   empleados = db.collection("empleados");
   turnos = db.collection("turnos");
   turnosActivos = db.collection("turnosActivos");
+  convenios = db.collection("convenios"); // nueva colección
 
   // Evita duplicar turnos activos
   await turnosActivos.createIndex({ discordId: 1 }, { unique: true });
@@ -214,6 +217,40 @@ client.on(Events.InteractionCreate, async interaction => {
         ephemeral: true
       });
     }
+
+    // 💰 CARGAR CONVENIO POLICIAL
+if (interaction.commandName === "convenio_cargar") {
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({ content: "❌ Solo administradores.", ephemeral: true });
+  }
+
+  const monto = interaction.options.getInteger("monto");
+
+  await convenios.updateOne(
+    { nombre: "policia" },
+    { $set: { saldo: monto, nombre: "policia" } },
+    { upsert: true }
+  );
+
+  return interaction.reply({
+    content: `✅ Convenio policial cargado con **${monto}** combos.`,
+    ephemeral: true
+  });
+}
+
+// 👀 VER SALDO CONVENIO
+if (interaction.commandName === "convenio_ver") {
+  const convenio = await convenios.findOne({ nombre: "policia" });
+
+  if (!convenio) {
+    return interaction.reply({ content: "⚠️ No hay convenio cargado aún.", ephemeral: true });
+  }
+
+  return interaction.reply({
+    content: `🚔 Convenio policial — Saldo: **${convenio.saldo}** combos`,
+    ephemeral: true
+  });
+}
 
     // ⏱ HORAS TOTALES
     if (interaction.commandName === "horas_totales") {
@@ -657,12 +694,47 @@ if (interaction.customId === "seguir_turno") {
 
     return;
   }
-
-  // ===============================
-  // COMANDOS SLASH (los tuyos siguen igual)
-  // ===============================
 });
- 
+ // ===============================
+// 💬 MENSAJES — DESCUENTO CONVENIO
+// ===============================
+client.on(Events.MessageCreate, async message => {
+  if (message.author.bot) return;
+  if (message.channel.name !== CANAL_CONVENIO) return;
+
+  const numero = parseInt(message.content.trim());
+  if (isNaN(numero) || numero <= 0) return; // ignora si no es número positivo
+
+  const convenio = await convenios.findOne({ nombre: "policia" });
+
+  if (!convenio) {
+    return message.reply("⚠️ No hay convenio cargado. Usá `/convenio_cargar` primero.");
+  }
+
+  if (convenio.saldo <= 0) {
+    return message.reply("❌ El convenio policial no tiene saldo disponible.");
+  }
+
+  if (numero > convenio.saldo) {
+    return message.reply(`⚠️ No hay suficiente saldo. Saldo actual: **${convenio.saldo}**`);
+  }
+
+  const nuevoSaldo = convenio.saldo - numero;
+
+  await convenios.updateOne(
+    { nombre: "policia" },
+    { $set: { saldo: nuevoSaldo } }
+  );
+
+  // Mensaje según saldo restante
+  let estado = "";
+  if (nuevoSaldo === 0) estado = "\n🚨 **¡Saldo agotado! Hay que renovar el convenio.**";
+  else if (nuevoSaldo <= 20) estado = "\n⚠️ Saldo bajo, avisá para renovar pronto.";
+
+  return message.reply(
+    `✅ Se descontaron **${numero}** combos.\n📦 Saldo restante: **${nuevoSaldo}**${estado}`
+  );
+});
 // ===============================
 // 🚀 INICIO
 // ===============================
