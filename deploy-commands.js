@@ -67,18 +67,35 @@ new SlashCommandBuilder()
 
 new SlashCommandBuilder()
   .setName("convenio_cargar")
-  .setDescription("Carga o recarga el saldo del convenio policial")
+  .setDescription("Carga o recarga el saldo de un convenio")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addStringOption(option =>
+    option.setName("convenio")
+      .setDescription("Nombre del convenio")
+      .setRequired(true)
+      .addChoices(
+        { name: "PDLC", value: "pdlc" },
+        { name: "PBA", value: "pba" },
+      )
+  )
   .addIntegerOption(option =>
-    option
-      .setName("monto")
+    option.setName("monto")
       .setDescription("Monto a cargar")
       .setRequired(true)
   ),
 
 new SlashCommandBuilder()
   .setName("convenio_ver")
-  .setDescription("Ver el saldo actual del convenio policial"),
+  .setDescription("Ver el saldo de un convenio")
+  .addStringOption(option =>
+    option.setName("convenio")
+      .setDescription("Nombre del convenio")
+      .setRequired(true)
+      .addChoices(
+        { name: "PDLC", value: "pdlc" },
+        { name: "PBA", value: "pba" },
+      )
+  ),
 
   new SlashCommandBuilder()
   .setName("registros_borrar")

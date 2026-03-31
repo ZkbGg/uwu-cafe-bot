@@ -33,7 +33,10 @@ let turnosActivos;
 const timersTurnos = new Map();
 const timersInactividad = new Map();
 let convenios; // nueva colección
-const CANAL_CONVENIO_ID = "1485904206664568863"; // ID del canal de convenio policial
+const CANALES_CONVENIO = {
+  "1485904206664568863": "pdlc",
+  "1486977989437816842": "pba",
+};
 
 async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
@@ -222,36 +225,38 @@ client.on(Events.InteractionCreate, async interaction => {
       });
     }
 
-    // 💰 CARGAR CONVENIO POLICIAL
+// 💰 CARGAR CONVENIO
 if (interaction.commandName === "convenio_cargar") {
   if (!interaction.member.permissions.has("Administrator")) {
     return interaction.reply({ content: "❌ Solo administradores.", ephemeral: true });
   }
 
+  const nombreConvenio = interaction.options.getString("convenio");
   const monto = interaction.options.getInteger("monto");
 
   await convenios.updateOne(
-    { nombre: "policia" },
-    { $set: { saldo: monto, nombre: "policia" } },
+    { nombre: nombreConvenio },
+    { $set: { saldo: monto, nombre: nombreConvenio } },
     { upsert: true }
   );
 
   return interaction.reply({
-    content: `✅ Convenio policial cargado con **${monto}** combos.`,
+    content: `✅ Convenio **${nombreConvenio.toUpperCase()}** cargado con **${monto}** combos.`,
     ephemeral: true
   });
 }
 
 // 👀 VER SALDO CONVENIO
 if (interaction.commandName === "convenio_ver") {
-  const convenio = await convenios.findOne({ nombre: "policia" });
+  const nombreConvenio = interaction.options.getString("convenio");
+  const convenio = await convenios.findOne({ nombre: nombreConvenio });
 
   if (!convenio) {
     return interaction.reply({ content: "⚠️ No hay convenio cargado aún.", ephemeral: true });
   }
 
   return interaction.reply({
-    content: `🚔 Convenio policial — Saldo: **${convenio.saldo}** combos`,
+    content: `🚔 Convenio **${nombreConvenio.toUpperCase()}** — Saldo: **${convenio.saldo}** combos`,
     ephemeral: true
   });
 }
@@ -704,19 +709,22 @@ if (interaction.customId === "seguir_turno") {
 // ===============================
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
-  if (message.channel.id !== CANAL_CONVENIO_ID) return; // 👈 comparar por ID
+  if (message.author.id === client.user.id) return;
+
+  const nombreConvenio = CANALES_CONVENIO[message.channel.id];
+  if (!nombreConvenio) return; // canal que no es de convenio, ignorar
 
   const numero = parseInt(message.content.trim());
-  if (isNaN(numero) || numero <= 0) return; // ignora si no es número positivo
+  if (isNaN(numero) || numero <= 0) return;
 
-  const convenio = await convenios.findOne({ nombre: "policia" });
+  const convenio = await convenios.findOne({ nombre: nombreConvenio });
 
   if (!convenio) {
-    return message.reply("⚠️ No hay convenio cargado. Usá `/convenio_cargar` primero.");
+    return message.reply(`⚠️ No hay convenio cargado. Usá \`/convenio_cargar\` primero.`);
   }
 
   if (convenio.saldo <= 0) {
-    return message.reply("❌ El convenio policial no tiene saldo disponible.");
+    return message.reply("❌ Este convenio no tiene saldo disponible.");
   }
 
   if (numero > convenio.saldo) {
@@ -726,11 +734,10 @@ client.on(Events.MessageCreate, async message => {
   const nuevoSaldo = convenio.saldo - numero;
 
   await convenios.updateOne(
-    { nombre: "policia" },
+    { nombre: nombreConvenio },
     { $set: { saldo: nuevoSaldo } }
   );
 
-  // Mensaje según saldo restante
   let estado = "";
   if (nuevoSaldo === 0) estado = "\n🚨 **¡Saldo agotado! Hay que renovar el convenio.**";
   else if (nuevoSaldo <= 20) estado = "\n⚠️ Saldo bajo, avisá para renovar pronto.";
