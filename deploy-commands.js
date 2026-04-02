@@ -97,6 +97,28 @@ new SlashCommandBuilder()
       )
   ),
 
+new SlashCommandBuilder()
+  .setName("crear_canje")
+  .setDescription("Crea un código de canje")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addStringOption(option =>
+    option.setName("premio")
+      .setDescription("Premio del código")
+      .setRequired(true)
+      .addChoices(
+        { name: "Combos x5",     value: "Combos x5" },
+        { name: "Combos x10",    value: "Combos x10" },
+        { name: "Combos x20",    value: "Combos x20" },
+        { name: "Cajitas uwu x3", value: "Cajitas uwu x3" },
+      )
+  ),
+
+new SlashCommandBuilder()
+  .setName("ver_canjes")
+  .setDescription("Ver todos los códigos de canje activos")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+
   new SlashCommandBuilder()
   .setName("registros_borrar")
   .setDescription("🧾 Borra todo el historial de turnos")

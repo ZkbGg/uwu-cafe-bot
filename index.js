@@ -30,6 +30,7 @@ let db;
 let empleados;
 let turnos;
 let turnosActivos;
+let canjes;
 const timersTurnos = new Map();
 const timersInactividad = new Map();
 let convenios; // nueva colección
@@ -37,6 +38,8 @@ const CANALES_CONVENIO = {
   "1485904206664568863": "pdlc",
   "1486977989437816842": "pba",
 };
+const CANAL_CREAR_CANJE  = "1489156549300584458";   // canal donde se crean los canjes (solo para avisos, no se lee el contenido)
+const CANAL_CANJEAR      = "1489156579260633148"; // canal donde se hacen los canjes (se lee el contenido para validar códigos)
 
 async function programarChequeoTurno(discordId, empleado, canalId, delay = 2 * 60 * 60 * 1000) {
 
@@ -164,7 +167,7 @@ async function conectarDB() {
   turnos = db.collection("turnos");
   turnosActivos = db.collection("turnosActivos");
   convenios = db.collection("convenios"); // nueva colección
-
+  canjes = db.collection("canjes");
   // Evita duplicar turnos activos
   await turnosActivos.createIndex({ discordId: 1 }, { unique: true });
 
@@ -224,6 +227,58 @@ client.on(Events.InteractionCreate, async interaction => {
         ephemeral: true
       });
     }
+
+// 🎟️ CREAR CÓDIGO DE CANJE
+if (interaction.commandName === "crear_canje") {
+  if (!interaction.member.permissions.has("Administrator")) {
+    return interaction.reply({ content: "❌ Solo administradores.", ephemeral: true });
+  }
+
+  const premio = interaction.options.getString("premio");
+
+  // Generar código xxx-xxx-xxx
+  const rand = () => Math.random().toString(36).substring(2, 5).toUpperCase();
+  const codigo = `${rand()}-${rand()}-${rand()}`;
+
+  await canjes.insertOne({
+    codigo,
+    premio,
+    usado: false,
+    creadoEn: new Date()
+  });
+
+  // Mandar al canal #crear_canje
+  const canalCrear = await client.channels.fetch(CANAL_CREAR_CANJE);
+  await canalCrear.send(
+    `🎟️ Nuevo código creado\n` +
+    `📦 Premio: **${premio}**\n` +
+    `🔑 Código: \`${codigo}\``
+  );
+
+  return interaction.reply({
+    content: `✅ Código \`${codigo}\` creado para **${premio}**`,
+    ephemeral: true
+  });
+}
+
+// 📋 VER CANJES ACTIVOS
+if (interaction.commandName === "ver_canjes") {
+  const lista = await canjes.find({ usado: false }).toArray();
+
+  if (!lista.length) {
+    return interaction.reply({ content: "😴 No hay códigos activos.", ephemeral: true });
+  }
+
+  const texto = lista.map(c =>
+    `\`${c.codigo}\` — **${c.premio}**`
+  ).join("\n");
+
+  return interaction.reply({
+    content: `🎟️ **Códigos activos:**\n\n${texto}`,
+    ephemeral: true
+  });
+}
+
 
 // 💰 CARGAR CONVENIO
 if (interaction.commandName === "convenio_cargar") {
@@ -704,6 +759,45 @@ if (interaction.customId === "seguir_turno") {
     return;
   }
 });
+
+// ===============================
+// 🎟️ CANJEAR CÓDIGO
+// ===============================
+if (message.channel.id === CANAL_CANJEAR) {
+  const contenido = message.content.trim().toUpperCase();
+
+  // Validar formato xxx-xxx-xxx
+  if (!/^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(contenido)) {
+    return message.reply("⚠️ Formato inválido. Usá el formato `XXX-XXX-XXX`");
+  }
+
+  const canje = await canjes.findOne({ codigo: contenido });
+
+  if (!canje) {
+    return message.reply("❌ Código inválido o inexistente.");
+  }
+
+  if (canje.usado) {
+    return message.reply("❌ Este código ya fue canjeado.");
+  }
+
+  await canjes.updateOne(
+    { codigo: contenido },
+    {
+      $set: {
+        usado: true,
+        canjeadoPor: message.author.id,
+        canjeadoEn: new Date()
+      }
+    }
+  );
+
+  return message.reply(
+    `✅ ¡Código canjeado exitosamente!\n` +
+    `🎁 Premio: **${canje.premio}**\n` +
+    `👤 Canjeado por: <@${message.author.id}>`
+  );
+}
  // ===============================
 // 💬 MENSAJES — DESCUENTO CONVENIO
 // ===============================
