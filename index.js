@@ -759,8 +759,11 @@ if (interaction.customId === "seguir_turno") {
     return;
   }
 });
-
+ // ===============================
+// 💬 MENSAJES — DESCUENTO CONVENIO
 // ===============================
+client.on(Events.MessageCreate, async message => {
+  // ===============================
 // 🎟️ CANJEAR CÓDIGO
 // ===============================
 if (message.channel.id === CANAL_CANJEAR) {
@@ -798,10 +801,6 @@ if (message.channel.id === CANAL_CANJEAR) {
     `👤 Canjeado por: <@${message.author.id}>`
   );
 }
- // ===============================
-// 💬 MENSAJES — DESCUENTO CONVENIO
-// ===============================
-client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
   if (message.author.id === client.user.id) return;
 
