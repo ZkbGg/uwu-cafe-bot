@@ -762,50 +762,56 @@ if (interaction.customId === "seguir_turno") {
  // ===============================
 // 💬 MENSAJES — DESCUENTO CONVENIO
 // ===============================
-client.on(Events.MessageCreate, async message => {
-  // ===============================
-// 🎟️ CANJEAR CÓDIGO
 // ===============================
-if (message.channel.id === CANAL_CANJEAR) {
-  const contenido = message.content.trim().toUpperCase();
-
-  // Validar formato xxx-xxx-xxx
-  if (!/^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(contenido)) {
-    return message.reply("⚠️ Formato inválido. Usá el formato `XXX-XXX-XXX`");
-  }
-
-  const canje = await canjes.findOne({ codigo: contenido });
-
-  if (!canje) {
-    return message.reply("❌ Código inválido o inexistente.");
-  }
-
-  if (canje.usado) {
-    return message.reply("❌ Este código ya fue canjeado.");
-  }
-
-  await canjes.updateOne(
-    { codigo: contenido },
-    {
-      $set: {
-        usado: true,
-        canjeadoPor: message.author.id,
-        canjeadoEn: new Date()
-      }
-    }
-  );
-
-  return message.reply(
-    `✅ ¡Código canjeado exitosamente!\n` +
-    `🎁 Premio: **${canje.premio}**\n` +
-    `👤 Canjeado por: <@${message.author.id}>`
-  );
-}
+// 💬 MENSAJES
+// ===============================
+client.on(Events.MessageCreate, async message => {
+  // 🔒 Ignorar bots SIEMPRE — esto va primero y no se repite
   if (message.author.bot) return;
-  if (message.author.id === client.user.id) return;
+  if (message.webhookId) return;
+  if (message.author.id === client.user?.id) return;
 
+  // ===============================
+  // 🎟️ CANJEAR CÓDIGO
+  // ===============================
+  if (message.channel.id === CANAL_CANJEAR) {
+    const contenido = message.content.trim().toUpperCase();
+
+    if (!/^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(contenido)) {
+      await message.delete().catch(() => {}); // 👈 borra el mensaje inválido en vez de responder
+      return;
+    }
+
+    const canje = await canjes.findOne({ codigo: contenido });
+
+    if (!canje) {
+      await message.delete().catch(() => {});
+      return message.channel.send(`❌ <@${message.author.id}> Código inválido o inexistente.`);
+    }
+
+    if (canje.usado) {
+      await message.delete().catch(() => {});
+      return message.channel.send(`❌ <@${message.author.id}> Este código ya fue canjeado.`);
+    }
+
+    await canjes.updateOne(
+      { codigo: contenido },
+      { $set: { usado: true, canjeadoPor: message.author.id, canjeadoEn: new Date() } }
+    );
+
+    await message.delete().catch(() => {});
+    return message.channel.send(
+      `✅ ¡Código canjeado exitosamente!\n` +
+      `🎁 Premio: **${canje.premio}**\n` +
+      `👤 Canjeado por: <@${message.author.id}>`
+    );
+  }
+
+  // ===============================
+  // 💬 DESCUENTO CONVENIO
+  // ===============================
   const nombreConvenio = CANALES_CONVENIO[message.channel.id];
-  if (!nombreConvenio) return; // canal que no es de convenio, ignorar
+  if (!nombreConvenio) return;
 
   const numero = parseInt(message.content.trim());
   if (isNaN(numero) || numero <= 0) return;
